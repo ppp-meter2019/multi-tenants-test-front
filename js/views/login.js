@@ -1,16 +1,19 @@
-import { detectTenant, isSplitOriginMode, login } from "../auth.js";
+import { APP_DOMAIN } from "../../config.js";
+import { detectTenant, login } from "../auth.js";
 import { el, clear, flash, errorText } from "../ui.js";
 
 export function renderLogin(host, onLogged) {
   clear(host);
-  const splitMode = isSplitOriginMode();
+  // The "Тенант" field is shown only when APP_DOMAIN isn't configured —
+  // in that fallback we don't know how to derive the tenant from the URL,
+  // so the operator types it manually. When APP_DOMAIN is set (any prod
+  // setup), the tenant is unambiguous from window.location.hostname.
+  const askTenantManually = !APP_DOMAIN;
   const detected = detectTenant();
 
   const wrap = el("div", { class: "login-wrap card" }, el("h2", {}, "Вхід"));
 
-  // In production (same-origin) the tenant comes from the URL — show it as
-  // read-only context. In dev (split-origin) the operator can type it.
-  if (splitMode) {
+  if (askTenantManually) {
     wrap.append(el("p", { class: "muted" },
       "Залиште поле «Тенант» порожнім для адміністратора платформи. "
       + "Введіть alpha / beta / gamma — для адміна компанії, водія або клієнта."));
@@ -23,7 +26,7 @@ export function renderLogin(host, onLogged) {
 
   const form = el("form", {});
 
-  if (splitMode) {
+  if (askTenantManually) {
     form.append(formField(
       "Тенант (необов'язково)",
       el("input", { name: "subdomain", placeholder: "alpha", value: detected }),
@@ -40,7 +43,7 @@ export function renderLogin(host, onLogged) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const data = new FormData(form);
-    const subdomain = splitMode
+    const subdomain = askTenantManually
       ? (data.get("subdomain") || "").toString().trim().toLowerCase()
       : undefined;  // undefined → auth.js falls back to detectTenant()
     const username = (data.get("username") || "").toString().trim();
