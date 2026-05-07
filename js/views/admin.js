@@ -4,17 +4,21 @@
  * - company_admin (on a tenant host) sees Cars, Drivers, Customers, Products,
  *   Orders, Routes.
  *
- * Each tab is a tiny CRUD: list on the left, create-form below.
+ * Each tab is a tiny CRUD: list on top, create-form below.
+ *
+ * All UI strings are looked up via i18n — tab labels and column headers are
+ * resolved at render time so toggling UA/EN re-renders correctly.
  */
 
 import { api } from "../api.js";
 import { getSession } from "../auth.js";
+import { t } from "../i18n.js";
 import { el, clear, flash, errorText } from "../ui.js";
 
 export function renderAdmin(host) {
   clear(host);
   const session = getSession();
-  const tabs = session.role === "tenant_admin" ? TENANT_ADMIN_TABS : COMPANY_ADMIN_TABS;
+  const tabs = session.role === "tenant_admin" ? tenantAdminTabs() : companyAdminTabs();
 
   const tabBar = el("div", { class: "tabs" });
   const content = el("div");
@@ -42,13 +46,13 @@ export function renderAdmin(host) {
 }
 
 // ---------------------------------------------------------------------------
-// Generic CRUD card builder. `fields` is a list of {name, label, type?, required?}
+// Generic CRUD card builder.
 // ---------------------------------------------------------------------------
 
 function crudCard({ title, listEndpoint, createEndpoint, deleteEndpoint, columns, fields, transformCreate }) {
   return (host) => {
     const card = el("div", { class: "card" }, el("h2", {}, title));
-    const tableWrap = el("div", {}, el("p", { class: "muted" }, "Завантаження..."));
+    const tableWrap = el("div", {}, el("p", { class: "muted" }, t("common.loading")));
     const formWrap = el("div");
     card.append(tableWrap, formWrap);
     host.append(card);
@@ -67,7 +71,7 @@ function crudCard({ title, listEndpoint, createEndpoint, deleteEndpoint, columns
     function renderTable(rows) {
       clear(tableWrap);
       if (!rows.length) {
-        tableWrap.append(el("p", { class: "muted" }, "Поки що порожньо."));
+        tableWrap.append(el("p", { class: "muted" }, t("common.empty")));
       } else {
         const table = el("table");
         const thead = el("thead", {}, el("tr", {},
@@ -82,13 +86,13 @@ function crudCard({ title, listEndpoint, createEndpoint, deleteEndpoint, columns
               el("button", {
                 class: "danger",
                 onclick: async () => {
-                  if (!confirm("Видалити запис #" + row.id + "?")) return;
+                  if (!confirm(t("common.confirmDelete") + row.id + "?")) return;
                   try {
                     await api.delete(deleteEndpoint(row));
                     await refresh();
                   } catch (e) { flash(card, "error", errorText(e)); }
                 },
-              }, "Видалити"),
+              }, t("common.delete")),
             ) : null,
           );
           tbody.append(tr);
@@ -99,7 +103,7 @@ function crudCard({ title, listEndpoint, createEndpoint, deleteEndpoint, columns
     }
 
     if (fields && createEndpoint) {
-      formWrap.append(el("h3", {}, "Створити"));
+      formWrap.append(el("h3", {}, t("common.create")));
       const form = el("form", { class: "row" });
       for (const f of fields) {
         const wrap = el("div", { style: "min-width: 160px" });
@@ -113,7 +117,8 @@ function crudCard({ title, listEndpoint, createEndpoint, deleteEndpoint, columns
         wrap.append(input);
         form.append(wrap);
       }
-      const submit = el("div", { style: "align-self: flex-end" }, el("button", { type: "submit" }, "Додати"));
+      const submit = el("div", { style: "align-self: flex-end" },
+        el("button", { type: "submit" }, t("common.add")));
       form.append(submit);
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -122,7 +127,7 @@ function crudCard({ title, listEndpoint, createEndpoint, deleteEndpoint, columns
         try {
           await api.post(createEndpoint, payload);
           form.reset();
-          flash(card, "ok", "Додано.");
+          flash(card, "ok", t("common.added"));
           await refresh();
         } catch (e) { flash(card, "error", errorText(e)); }
       });
@@ -134,166 +139,170 @@ function crudCard({ title, listEndpoint, createEndpoint, deleteEndpoint, columns
 }
 
 // ---------------------------------------------------------------------------
-// tenant_admin tabs
+// tenant_admin tabs — built fresh on each render so labels reflect lang.
 // ---------------------------------------------------------------------------
 
-const TENANT_ADMIN_TABS = [
-  {
-    id: "tenants",
-    label: "Тенанти",
-    render: crudCard({
-      title: "Тенанти",
-      listEndpoint: "/api/tenants/",
-      createEndpoint: "/api/tenants/",
-      deleteEndpoint: (row) => `/api/tenants/${row.id}/`,
-      columns: [
-        { key: "schema_name", label: "Schema" },
-        { key: "name", label: "Назва" },
-        { label: "Домени", render: (r) => (r.domains || []).map((d) => d.domain).join(", ") },
-        { key: "created_on", label: "Створено" },
-      ],
-      fields: [
-        { name: "schema_name", label: "Schema (alpha)", required: true },
-        { name: "name", label: "Назва (Alpha LLC)", required: true },
-        { name: "domain", label: "Домен (alpha.localhost)", required: true },
-      ],
-    }),
-  },
-];
+function tenantAdminTabs() {
+  return [
+    {
+      id: "tenants",
+      label: t("tab.tenants"),
+      render: crudCard({
+        title: t("tab.tenants"),
+        listEndpoint: "/api/tenants/",
+        createEndpoint: "/api/tenants/",
+        deleteEndpoint: (row) => `/api/tenants/${row.id}/`,
+        columns: [
+          { key: "schema_name", label: t("field.schema") },
+          { key: "name", label: t("field.name") },
+          { label: t("field.domains"), render: (r) => (r.domains || []).map((d) => d.domain).join(", ") },
+          { key: "created_on", label: t("field.created") },
+        ],
+        fields: [
+          { name: "schema_name", label: t("tenant.field.schema"), required: true },
+          { name: "name", label: t("tenant.field.name"), required: true },
+          { name: "domain", label: t("tenant.field.domain"), required: true },
+        ],
+      }),
+    },
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // company_admin tabs
 // ---------------------------------------------------------------------------
 
-const COMPANY_ADMIN_TABS = [
-  {
-    id: "products",
-    label: "Товари",
-    render: crudCard({
-      title: "Товари",
-      listEndpoint: "/api/products/",
-      createEndpoint: "/api/products/",
-      deleteEndpoint: (row) => `/api/products/${row.id}/`,
-      columns: [
-        { key: "id", label: "ID" },
-        { key: "name", label: "Назва" },
-        { key: "price", label: "Ціна" },
-      ],
-      fields: [
-        { name: "name", label: "Назва", required: true },
-        { name: "price", label: "Ціна", required: true, type: "number", step: "0.01" },
-      ],
-    }),
-  },
-  {
-    id: "cars",
-    label: "Машини",
-    render: crudCard({
-      title: "Машини",
-      listEndpoint: "/api/cars/",
-      createEndpoint: "/api/cars/",
-      deleteEndpoint: (row) => `/api/cars/${row.id}/`,
-      columns: [
-        { key: "id", label: "ID" },
-        { key: "brand", label: "Бренд" },
-        { key: "model", label: "Модель" },
-        { key: "year", label: "Рік" },
-        { key: "license_plate", label: "Номер" },
-      ],
-      fields: [
-        { name: "brand", label: "Бренд", required: true },
-        { name: "model", label: "Модель", required: true },
-        { name: "year", label: "Рік", required: true, type: "number" },
-        { name: "license_plate", label: "Номер", required: true },
-      ],
-      transformCreate: (d) => ({ ...d, year: Number(d.year) }),
-    }),
-  },
-  {
-    id: "drivers",
-    label: "Водії",
-    render: crudCard({
-      title: "Водії",
-      listEndpoint: "/api/drivers/",
-      createEndpoint: "/api/drivers/",
-      deleteEndpoint: (row) => `/api/drivers/${row.id}/`,
-      columns: [
-        { key: "id", label: "ID" },
-        { key: "username", label: "Логін" },
-        { key: "first_name", label: "Ім'я" },
-        { key: "last_name", label: "Прізвище" },
-        { key: "date_of_birth", label: "Дата народж." },
-        { key: "license_number", label: "Ліцензія" },
-      ],
-      fields: [
-        { name: "username", label: "Логін", required: true },
-        { name: "password", label: "Пароль", required: true, type: "password" },
-        { name: "first_name", label: "Ім'я", required: true },
-        { name: "last_name", label: "Прізвище", required: true },
-        { name: "date_of_birth", label: "Дата народження", required: true, type: "date" },
-        { name: "license_number", label: "Номер ліцензії", required: true },
-      ],
-    }),
-  },
-  {
-    id: "customers",
-    label: "Замовники",
-    render: crudCard({
-      title: "Замовники",
-      listEndpoint: "/api/customers/",
-      createEndpoint: "/api/customers/",
-      deleteEndpoint: (row) => `/api/customers/${row.id}/`,
-      columns: [
-        { key: "id", label: "ID" },
-        { key: "username", label: "Логін" },
-        { key: "first_name", label: "Ім'я" },
-        { key: "last_name", label: "Прізвище" },
-        { key: "phone", label: "Телефон" },
-      ],
-      fields: [
-        { name: "username", label: "Логін", required: true },
-        { name: "password", label: "Пароль", required: true, type: "password" },
-        { name: "first_name", label: "Ім'я" },
-        { name: "last_name", label: "Прізвище" },
-        { name: "email", label: "Email" },
-        { name: "phone", label: "Телефон" },
-        { name: "address", label: "Адреса" },
-      ],
-    }),
-  },
-  {
-    id: "orders",
-    label: "Замовлення",
-    render: renderOrdersAdmin,
-  },
-  {
-    id: "routes",
-    label: "Маршрути",
-    render: renderRoutesAdmin,
-  },
-];
+function companyAdminTabs() {
+  return [
+    {
+      id: "products",
+      label: t("tab.products"),
+      render: crudCard({
+        title: t("tab.products"),
+        listEndpoint: "/api/products/",
+        createEndpoint: "/api/products/",
+        deleteEndpoint: (row) => `/api/products/${row.id}/`,
+        columns: [
+          { key: "id", label: t("field.id") },
+          { key: "name", label: t("field.name") },
+          { key: "price", label: t("field.price") },
+        ],
+        fields: [
+          { name: "name", label: t("field.name"), required: true },
+          { name: "price", label: t("field.price"), required: true, type: "number", step: "0.01" },
+        ],
+      }),
+    },
+    {
+      id: "cars",
+      label: t("tab.cars"),
+      render: crudCard({
+        title: t("tab.cars"),
+        listEndpoint: "/api/cars/",
+        createEndpoint: "/api/cars/",
+        deleteEndpoint: (row) => `/api/cars/${row.id}/`,
+        columns: [
+          { key: "id", label: t("field.id") },
+          { key: "brand", label: t("field.brand") },
+          { key: "model", label: t("field.model") },
+          { key: "year", label: t("field.year") },
+          { key: "license_plate", label: t("field.licensePlate") },
+        ],
+        fields: [
+          { name: "brand", label: t("field.brand"), required: true },
+          { name: "model", label: t("field.model"), required: true },
+          { name: "year", label: t("field.year"), required: true, type: "number" },
+          { name: "license_plate", label: t("field.licensePlate"), required: true },
+        ],
+        transformCreate: (d) => ({ ...d, year: Number(d.year) }),
+      }),
+    },
+    {
+      id: "drivers",
+      label: t("tab.drivers"),
+      render: crudCard({
+        title: t("tab.drivers"),
+        listEndpoint: "/api/drivers/",
+        createEndpoint: "/api/drivers/",
+        deleteEndpoint: (row) => `/api/drivers/${row.id}/`,
+        columns: [
+          { key: "id", label: t("field.id") },
+          { key: "username", label: t("field.username") },
+          { key: "first_name", label: t("field.firstName") },
+          { key: "last_name", label: t("field.lastName") },
+          { key: "date_of_birth", label: t("field.dateOfBirth") },
+          { key: "license_number", label: t("field.licenseNumber") },
+        ],
+        fields: [
+          { name: "username", label: t("field.username"), required: true },
+          { name: "password", label: t("field.password"), required: true, type: "password" },
+          { name: "first_name", label: t("field.firstName"), required: true },
+          { name: "last_name", label: t("field.lastName"), required: true },
+          { name: "date_of_birth", label: t("field.dateOfBirth"), required: true, type: "date" },
+          { name: "license_number", label: t("field.licenseNumber"), required: true },
+        ],
+      }),
+    },
+    {
+      id: "customers",
+      label: t("tab.customers"),
+      render: crudCard({
+        title: t("tab.customers"),
+        listEndpoint: "/api/customers/",
+        createEndpoint: "/api/customers/",
+        deleteEndpoint: (row) => `/api/customers/${row.id}/`,
+        columns: [
+          { key: "id", label: t("field.id") },
+          { key: "username", label: t("field.username") },
+          { key: "first_name", label: t("field.firstName") },
+          { key: "last_name", label: t("field.lastName") },
+          { key: "phone", label: t("field.phone") },
+        ],
+        fields: [
+          { name: "username", label: t("field.username"), required: true },
+          { name: "password", label: t("field.password"), required: true, type: "password" },
+          { name: "first_name", label: t("field.firstName") },
+          { name: "last_name", label: t("field.lastName") },
+          { name: "email", label: t("field.email") },
+          { name: "phone", label: t("field.phone") },
+          { name: "address", label: t("field.address") },
+        ],
+      }),
+    },
+    {
+      id: "orders",
+      label: t("tab.orders"),
+      render: renderOrdersAdmin,
+    },
+    {
+      id: "routes",
+      label: t("tab.routes"),
+      render: renderRoutesAdmin,
+    },
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // Orders / Routes need richer UI than the generic helper supports
 // ---------------------------------------------------------------------------
 
 async function renderOrdersAdmin(host) {
-  const card = el("div", { class: "card" }, el("h2", {}, "Замовлення"));
+  const card = el("div", { class: "card" }, el("h2", {}, t("tab.orders")));
   host.append(card);
   try {
     const orders = await api.get("/api/orders/");
     const rows = Array.isArray(orders) ? orders : (orders.results || []);
     if (!rows.length) {
-      card.append(el("p", { class: "muted" }, "Замовлень немає."));
+      card.append(el("p", { class: "muted" }, t("orders.empty")));
       return;
     }
     const table = el("table", {},
       el("thead", {}, el("tr", {},
-        el("th", {}, "ID"),
-        el("th", {}, "Клієнт"),
-        el("th", {}, "Статус"),
-        el("th", {}, "Позиції"),
-        el("th", {}, "Створено"),
+        el("th", {}, t("field.id")),
+        el("th", {}, t("field.customer")),
+        el("th", {}, t("field.status")),
+        el("th", {}, t("field.items")),
+        el("th", {}, t("field.created")),
       )),
       el("tbody", {}, ...rows.map((o) => el("tr", {},
         el("td", {}, o.id),
@@ -310,7 +319,7 @@ async function renderOrdersAdmin(host) {
 }
 
 async function renderRoutesAdmin(host) {
-  const card = el("div", { class: "card" }, el("h2", {}, "Маршрути"));
+  const card = el("div", { class: "card" }, el("h2", {}, t("tab.routes")));
   host.append(card);
 
   let drivers = [], cars = [], orders = [], routes = [];
@@ -330,16 +339,15 @@ async function renderRoutesAdmin(host) {
   orders = orders.results || orders;
   routes = routes.results || routes;
 
-  // existing routes
   if (routes.length) {
     const tbl = el("table", {},
       el("thead", {}, el("tr", {},
-        el("th", {}, "ID"),
-        el("th", {}, "Назва"),
-        el("th", {}, "Водій"),
-        el("th", {}, "Машина"),
-        el("th", {}, "Замовлення"),
-        el("th", {}, "Статус"),
+        el("th", {}, t("field.id")),
+        el("th", {}, t("field.name")),
+        el("th", {}, t("field.driver")),
+        el("th", {}, t("field.car")),
+        el("th", {}, t("field.orders")),
+        el("th", {}, t("field.status")),
       )),
       el("tbody", {}, ...routes.map((r) => el("tr", {},
         el("td", {}, r.id),
@@ -352,19 +360,18 @@ async function renderRoutesAdmin(host) {
     );
     card.append(tbl);
   } else {
-    card.append(el("p", { class: "muted" }, "Маршрутів немає."));
+    card.append(el("p", { class: "muted" }, t("routes.empty")));
   }
 
-  // create form
-  card.append(el("h3", {}, "Новий маршрут"));
+  card.append(el("h3", {}, t("routes.new")));
   const form = el("form", { class: "row" });
   const inputName = el("input", { name: "name", required: true });
   const selectDriver = el("select", { name: "driver", required: true },
-    el("option", { value: "" }, "— водій —"),
+    el("option", { value: "" }, t("routes.placeholder.driver")),
     ...drivers.map((d) => el("option", { value: d.id }, labelDriver(d))),
   );
   const selectCar = el("select", { name: "car", required: true },
-    el("option", { value: "" }, "— машина —"),
+    el("option", { value: "" }, t("routes.placeholder.car")),
     ...cars.map((c) => el("option", { value: c.id }, labelCar(c))),
   );
   const ordersBox = el("select", { name: "orders", multiple: true, size: Math.min(6, Math.max(3, orders.length)) },
@@ -375,12 +382,12 @@ async function renderRoutesAdmin(host) {
   );
 
   form.append(
-    formField("Назва", inputName),
-    formField("Водій", selectDriver),
-    formField("Машина", selectCar),
-    formField("Замовлення (Ctrl+click)", ordersBox),
-    formField("Статус", selectStatus),
-    el("div", { style: "align-self: flex-end" }, el("button", { type: "submit" }, "Створити")),
+    formField(t("field.name"), inputName),
+    formField(t("field.driver"), selectDriver),
+    formField(t("field.car"), selectCar),
+    formField(t("routes.placeholder.orders"), ordersBox),
+    formField(t("field.status"), selectStatus),
+    el("div", { style: "align-self: flex-end" }, el("button", { type: "submit" }, t("common.create"))),
   );
 
   form.addEventListener("submit", async (event) => {
@@ -395,8 +402,8 @@ async function renderRoutesAdmin(host) {
     };
     try {
       await api.post("/api/routes/", payload);
-      flash(card, "ok", "Маршрут створено.");
-      renderRoutesAdmin(host);  // re-fetch
+      flash(card, "ok", t("routes.created"));
+      renderRoutesAdmin(host);
       card.remove();
     } catch (e) { flash(card, "error", errorText(e)); }
   });

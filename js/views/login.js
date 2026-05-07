@@ -1,6 +1,7 @@
 import { APP_DOMAIN } from "../../config.js";
 import { detectTenant, login } from "../auth.js";
-import { el, clear, flash, errorText } from "../ui.js";
+import { getLang, setLang, t } from "../i18n.js";
+import { el, clear, flash, errorText, langToggle } from "../ui.js";
 
 export function renderLogin(host, onLogged) {
   clear(host);
@@ -11,32 +12,40 @@ export function renderLogin(host, onLogged) {
   const askTenantManually = !APP_DOMAIN;
   const detected = detectTenant();
 
-  const wrap = el("div", { class: "login-wrap card" }, el("h2", {}, "Вхід"));
+  const wrap = el("div", { class: "login-wrap card" });
+
+  // Header row: title + language switch.
+  wrap.append(
+    el("div", { style: "display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.6rem" },
+      el("h2", { style: "margin: 0; flex: 1" }, t("login.title")),
+      langToggle(getLang, setLang),
+    ),
+  );
 
   if (askTenantManually) {
-    wrap.append(el("p", { class: "muted" },
-      "Залиште поле «Тенант» порожнім для адміністратора платформи. "
-      + "Введіть alpha / beta / gamma — для адміна компанії, водія або клієнта."));
+    wrap.append(el("p", { class: "muted" }, t("login.hint.manual")));
   } else {
     wrap.append(el("p", { class: "muted" },
       detected
-        ? `Тенант визначено з адреси: ${detected}.`
-        : "Ви на основному сайті — увійдіть як адміністратор платформи."));
+        ? `${t("login.hint.detected")} ${detected}`
+        : t("login.hint.public")));
   }
 
   const form = el("form", {});
 
   if (askTenantManually) {
     form.append(formField(
-      "Тенант (необов'язково)",
+      t("login.field.subdomain"),
       el("input", { name: "subdomain", placeholder: "alpha", value: detected }),
     ));
   }
   form.append(
-    formField("Логін", el("input", { name: "username", required: true, autocomplete: "username" })),
-    formField("Пароль", el("input", { name: "password", type: "password", required: true, autocomplete: "current-password" })),
+    formField(t("login.field.username"),
+      el("input", { name: "username", required: true, autocomplete: "username" })),
+    formField(t("login.field.password"),
+      el("input", { name: "password", type: "password", required: true, autocomplete: "current-password" })),
     el("div", { class: "row", style: "margin-top: 0.5rem" },
-      el("button", { type: "submit" }, "Увійти"),
+      el("button", { type: "submit" }, t("login.submit")),
     ),
   );
 

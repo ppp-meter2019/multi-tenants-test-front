@@ -27,6 +27,33 @@ export function flash(host, kind, text) {
   setTimeout(() => div.remove(), 4500);
 }
 
+/**
+ * UA / EN switch. Two buttons; clicking one persists the choice via i18n.setLang
+ * which fans out to subscribers (currently the router → re-renders the view).
+ */
+export function langToggle(getLang, setLang) {
+  const wrap = el("span", { class: "lang-toggle" });
+  const langs = ["uk", "en"];
+  for (const code of langs) {
+    const btn = el("button", {
+      type: "button",
+      "data-lang": code,
+      onclick: () => setLang(code),
+    }, code.toUpperCase());
+    wrap.append(btn);
+  }
+  const sync = () => {
+    const active = getLang();
+    wrap.querySelectorAll("button").forEach((b) => {
+      b.classList.toggle("active", b.dataset.lang === active);
+    });
+  };
+  sync();
+  // expose so the caller can re-sync after external lang changes
+  wrap._sync = sync;
+  return wrap;
+}
+
 /** Pretty-print a DRF error payload. */
 export function errorText(err) {
   if (!err) return "Unknown error";

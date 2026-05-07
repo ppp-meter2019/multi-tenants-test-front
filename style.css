@@ -138,3 +138,33 @@ tr:hover td { background: #fafafa; }
   font-size: 0.75rem;
   color: #374151;
 }
+
+.lang-toggle {
+  display: inline-flex;
+  gap: 0;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.lang-toggle button {
+  background: transparent;
+  color: inherit;
+  border: 0;
+  padding: 0.25rem 0.55rem;
+  border-radius: 0;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+.lang-toggle button.active {
+  background: rgba(255, 255, 255, 0.15);
+  font-weight: 700;
+}
+.login-wrap .lang-toggle {
+  color: #4b5563;
+}
+.login-wrap .lang-toggle button.active {
+  background: #2563eb;
+  color: #fff;
+}

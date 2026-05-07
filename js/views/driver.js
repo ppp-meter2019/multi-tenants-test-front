@@ -1,45 +1,43 @@
 /**
  * Driver view:
- *   - own profile (read from /api/drivers/?username=<self>),
- *   - routes assigned to them (read from /api/routes/, backend filters by driver).
+ *   - own profile (read from session info — no /api/drivers/me/ endpoint),
+ *   - routes assigned to them (backend filters /api/routes/ by driver).
  */
 
 import { api } from "../api.js";
 import { getSession } from "../auth.js";
+import { t } from "../i18n.js";
 import { el, clear, errorText } from "../ui.js";
 
 export async function renderDriver(host) {
   clear(host);
   const session = getSession();
 
-  const profileCard = el("div", { class: "card" }, el("h2", {}, "Мій профіль"));
-  const routesCard = el("div", { class: "card" }, el("h2", {}, "Мої маршрути"));
+  const profileCard = el("div", { class: "card" }, el("h2", {}, t("driver.myProfile")));
+  const routesCard = el("div", { class: "card" }, el("h2", {}, t("driver.myRoutes")));
   host.append(profileCard, routesCard);
 
-  // Drivers can read /api/routes/ — backend already filters to "where driver
-  // is me". For the profile, we don't have a driver-side endpoint; we fall
-  // back to showing what we already know from the JWT/session.
   profileCard.append(
-    kv("Логін", session.username),
-    kv("Тенант (схема)", session.schema),
-    kv("Роль", "Водій"),
+    kv(t("driver.login"), session.username),
+    kv(t("driver.schema"), session.schema),
+    kv(t("driver.role"), t("role.driver")),
   );
 
   try {
     const data = await api.get("/api/routes/");
     const routes = Array.isArray(data) ? data : (data.results || []);
     if (!routes.length) {
-      routesCard.append(el("p", { class: "muted" }, "На вас поки що нічого не призначено."));
+      routesCard.append(el("p", { class: "muted" }, t("driver.noAssigned")));
       return;
     }
     const tbl = el("table", {},
       el("thead", {}, el("tr", {},
-        el("th", {}, "ID"),
-        el("th", {}, "Назва"),
-        el("th", {}, "Машина"),
-        el("th", {}, "Замовлення"),
-        el("th", {}, "Статус"),
-        el("th", {}, "Створено"),
+        el("th", {}, t("field.id")),
+        el("th", {}, t("field.name")),
+        el("th", {}, t("field.car")),
+        el("th", {}, t("field.orders")),
+        el("th", {}, t("field.status")),
+        el("th", {}, t("field.created")),
       )),
       el("tbody", {}, ...routes.map((r) => el("tr", {},
         el("td", {}, r.id),

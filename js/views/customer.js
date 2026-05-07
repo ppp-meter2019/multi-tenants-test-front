@@ -7,13 +7,14 @@
  */
 
 import { api } from "../api.js";
+import { t } from "../i18n.js";
 import { el, clear, flash, errorText } from "../ui.js";
 
 export async function renderCustomer(host) {
   clear(host);
 
-  const ordersCard = el("div", { class: "card" }, el("h2", {}, "Мої замовлення"));
-  const catalogCard = el("div", { class: "card" }, el("h2", {}, "Створити нове замовлення"));
+  const ordersCard = el("div", { class: "card" }, el("h2", {}, t("customer.myOrders")));
+  const catalogCard = el("div", { class: "card" }, el("h2", {}, t("customer.createNew")));
   host.append(ordersCard, catalogCard);
 
   await refreshOrders(ordersCard);
@@ -21,22 +22,21 @@ export async function renderCustomer(host) {
 }
 
 async function refreshOrders(card) {
-  // wipe everything except the title
   Array.from(card.children).slice(1).forEach((c) => c.remove());
   try {
     const data = await api.get("/api/orders/");
     const rows = Array.isArray(data) ? data : (data.results || []);
     if (!rows.length) {
-      card.append(el("p", { class: "muted" }, "У вас поки немає замовлень."));
+      card.append(el("p", { class: "muted" }, t("customer.noOrders")));
       return;
     }
     const table = el("table", {},
       el("thead", {}, el("tr", {},
-        el("th", {}, "ID"),
-        el("th", {}, "Статус"),
-        el("th", {}, "Позиції"),
-        el("th", {}, "Сума"),
-        el("th", {}, "Створено"),
+        el("th", {}, t("field.id")),
+        el("th", {}, t("field.status")),
+        el("th", {}, t("field.items")),
+        el("th", {}, t("field.sum")),
+        el("th", {}, t("field.created")),
       )),
       el("tbody", {}, ...rows.map((o) => {
         const total = (o.items || []).reduce((s, i) => s + Number(i.product_price) * i.quantity, 0);
@@ -66,13 +66,11 @@ async function renderCatalog(card, onCreated) {
   }
 
   if (!products.length) {
-    card.append(el("p", { class: "muted" }, "Каталог порожній — попросіть адміністратора додати товари."));
+    card.append(el("p", { class: "muted" }, t("customer.emptyCatalog")));
     return;
   }
 
-  // Map<productId, quantity>. 0/missing → not in cart.
   const cart = new Map();
-
   const totalLabel = el("strong", {}, "0.00");
 
   function recomputeTotal() {
@@ -87,9 +85,9 @@ async function renderCatalog(card, onCreated) {
   const list = el("table", {},
     el("thead", {}, el("tr", {},
       el("th", {}, ""),
-      el("th", {}, "Товар"),
-      el("th", {}, "Ціна"),
-      el("th", {}, "Кількість"),
+      el("th", {}, t("field.product")),
+      el("th", {}, t("field.price")),
+      el("th", {}, t("field.quantity")),
     )),
     el("tbody", {}, ...products.map((p) => {
       const checkbox = el("input", {
@@ -121,17 +119,17 @@ async function renderCatalog(card, onCreated) {
     })),
   );
 
-  const submit = el("button", { type: "button" }, "Оформити замовлення");
+  const submit = el("button", { type: "button" }, t("customer.checkout"));
   submit.addEventListener("click", async () => {
     if (cart.size === 0) {
-      flash(card, "error", "Виберіть хоча б один товар.");
+      flash(card, "error", t("customer.pickAtLeastOne"));
       return;
     }
     const items = Array.from(cart, ([product, quantity]) => ({ product, quantity }));
     submit.disabled = true;
     try {
       await api.post("/api/orders/", { items });
-      flash(card, "ok", "Замовлення створено.");
+      flash(card, "ok", t("customer.orderCreated"));
       cart.clear();
       list.querySelectorAll("input[type=checkbox]").forEach((c) => (c.checked = false));
       recomputeTotal();
@@ -144,7 +142,7 @@ async function renderCatalog(card, onCreated) {
   });
 
   const summary = el("div", { style: "margin-top: 0.75rem; display: flex; align-items: center; gap: 1rem" },
-    el("span", {}, "Разом: "), totalLabel,
+    el("span", {}, t("field.total")), totalLabel,
     submit,
   );
 
