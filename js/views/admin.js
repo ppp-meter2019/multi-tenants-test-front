@@ -10,6 +10,7 @@
  * resolved at render time so toggling UA/EN re-renders correctly.
  */
 
+import { APP_DOMAIN } from "../../config.js";
 import { api } from "../api.js";
 import { getSession } from "../auth.js";
 import { t } from "../i18n.js";
@@ -147,25 +148,130 @@ function tenantAdminTabs() {
     {
       id: "tenants",
       label: t("tab.tenants"),
-      render: crudCard({
-        title: t("tab.tenants"),
-        listEndpoint: "/api/tenants/",
-        createEndpoint: "/api/tenants/",
-        deleteEndpoint: (row) => `/api/tenants/${row.id}/`,
-        columns: [
-          { key: "schema_name", label: t("field.schema") },
-          { key: "name", label: t("field.name") },
-          { label: t("field.domains"), render: (r) => (r.domains || []).map((d) => d.domain).join(", ") },
-          { key: "created_on", label: t("field.created") },
-        ],
-        fields: [
-          { name: "schema_name", label: t("tenant.field.schema"), required: true },
-          { name: "name", label: t("tenant.field.name"), required: true },
-          { name: "domain", label: t("tenant.field.domain"), required: true },
-        ],
-      }),
+      render: renderTenantsAdmin,
     },
   ];
+}
+
+/**
+ * Custom render для табу «Тенанти» (замість generic crudCard).
+ *
+ * Чому окремо: поле `domain` не вводиться вручну, а обчислюється з
+ * schema_name + APP_DOMAIN. Так оператор не може фізично ввести apex
+ * (наприклад, `test-multitenants.isi-technology.com` сам по собі — він
+ * уже належить public-тенанту, і duplicate-domain падав би). Preview
+ * під формою показує, який саме hostname отримає новий тенант.
+ */
+async function renderTenantsAdmin(host) {
+  const card = el("div", { class: "card" }, el("h2", {}, t("tab.tenants")));
+  const tableWrap = el("div", {}, el("p", { class: "muted" }, t("common.loading")));
+  const formWrap = el("div");
+  card.append(tableWrap, formWrap);
+  host.append(card);
+
+  const apex = (APP_DOMAIN || window.location.hostname).replace(/^[^.]+\./, "")
+               || window.location.hostname;
+  // ↑ apex = APP_DOMAIN якщо заданий; інакше — current hostname без першого
+  // labelа (для dev-режиму на alpha.localhost це дасть `localhost`). Якщо
+  // current hostname не має крапки (одинокий `localhost`) — лишаємо як є.
+
+  async function refresh() {
+    try {
+      const data = await api.get("/api/tenants/");
+      const rows = Array.isArray(data) ? data : (data.results || []);
+      renderTable(rows);
+    } catch (error) {
+      clear(tableWrap);
+      tableWrap.append(el("div", { class: "message error" }, errorText(error)));
+    }
+  }
+
+  function renderTable(rows) {
+    clear(tableWrap);
+    if (!rows.length) {
+      tableWrap.append(el("p", { class: "muted" }, t("common.empty")));
+      return;
+    }
+    const table = el("table", {},
+      el("thead", {}, el("tr", {},
+        el("th", {}, t("field.schema")),
+        el("th", {}, t("field.name")),
+        el("th", {}, t("field.domains")),
+        el("th", {}, t("field.created")),
+        el("th", {}, ""),
+      )),
+      el("tbody", {}, ...rows.map((row) => el("tr", {},
+        el("td", {}, row.schema_name),
+        el("td", {}, row.name),
+        el("td", {}, (row.domains || []).map((d) => d.domain).join(", ")),
+        el("td", {}, row.created_on),
+        el("td", {},
+          el("button", {
+            class: "danger",
+            onclick: async () => {
+              if (!confirm(t("common.confirmDelete") + row.id + "?")) return;
+              try {
+                await api.delete(`/api/tenants/${row.id}/`);
+                await refresh();
+              } catch (e) { flash(card, "error", errorText(e)); }
+            },
+          }, t("common.delete")),
+        ),
+      ))),
+    );
+    tableWrap.append(table);
+  }
+
+  // Форма створення.
+  formWrap.append(el("h3", {}, t("common.create")));
+
+  const schemaInput = el("input", { name: "schema_name", required: true, placeholder: "delta" });
+  const nameInput = el("input", { name: "name", required: true, placeholder: "Delta LLC" });
+  const domainPreview = el("code", { style: "background: #f3f4f6; padding: 0.25rem 0.5rem; border-radius: 4px" }, "—");
+
+  function updatePreview() {
+    const schema = (schemaInput.value || "").toLowerCase().trim();
+    domainPreview.textContent = schema ? `${schema}.${apex}` : "—";
+  }
+  schemaInput.addEventListener("input", updatePreview);
+
+  const form = el("form", { class: "row" },
+    el("div", { style: "min-width: 160px" },
+      el("label", {}, t("tenant.field.schema")),
+      schemaInput,
+    ),
+    el("div", { style: "min-width: 220px" },
+      el("label", {}, t("tenant.field.name")),
+      nameInput,
+    ),
+    el("div", { style: "min-width: 240px" },
+      el("label", {}, t("tenant.field.domain")),
+      el("div", { style: "padding-top: 0.4rem" }, domainPreview),
+    ),
+    el("div", { style: "align-self: flex-end" }, el("button", { type: "submit" }, t("common.add"))),
+  );
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const schema = (schemaInput.value || "").toLowerCase().trim();
+    const payload = {
+      schema_name: schema,
+      name: nameInput.value.trim(),
+      domain: `${schema}.${apex}`,
+    };
+    try {
+      await api.post("/api/tenants/", payload);
+      flash(card, "ok", t("common.added"));
+      form.reset();
+      updatePreview();
+      await refresh();
+    } catch (e) {
+      flash(card, "error", errorText(e));
+    }
+  });
+  formWrap.append(form);
+
+  refresh();
 }
 
 // ---------------------------------------------------------------------------
