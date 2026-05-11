@@ -81,6 +81,7 @@ const DICT = {
     "field.car": "Машина",
     "field.orders": "Замовлення",
     "field.domains": "Домени",
+    "field.admins": "Адміни",
     "field.schema": "Schema",
     "field.product": "Товар",
     "field.quantity": "Кількість",
@@ -91,6 +92,10 @@ const DICT = {
     "tenant.field.schema": "Schema (alpha)",
     "tenant.field.name": "Назва (Alpha LLC)",
     "tenant.field.domain": "Домен (alpha.localhost)",
+    "tenant.createAdmin.button": "Створити адміна",
+    "tenant.createAdmin.helper": "Логін і пароль для першого company-адміна цього тенанта:",
+    "tenant.createAdmin.success": "Адміна створено.",
+    "common.cancel": "Скасувати",
 
     // orders / routes (admin)
     "orders.empty": "Замовлень немає.",
@@ -177,6 +182,7 @@ const DICT = {
     "field.car": "Car",
     "field.orders": "Orders",
     "field.domains": "Domains",
+    "field.admins": "Admins",
     "field.schema": "Schema",
     "field.product": "Product",
     "field.quantity": "Quantity",
@@ -186,6 +192,10 @@ const DICT = {
     "tenant.field.schema": "Schema (alpha)",
     "tenant.field.name": "Name (Alpha LLC)",
     "tenant.field.domain": "Domain (alpha.localhost)",
+    "tenant.createAdmin.button": "Create admin",
+    "tenant.createAdmin.helper": "Login and password for the first company admin of this tenant:",
+    "tenant.createAdmin.success": "Admin created.",
+    "common.cancel": "Cancel",
 
     "orders.empty": "No orders yet.",
     "routes.empty": "No routes yet.",

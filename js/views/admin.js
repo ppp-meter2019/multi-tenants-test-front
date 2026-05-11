@@ -191,20 +191,41 @@ async function renderTenantsAdmin(host) {
       tableWrap.append(el("p", { class: "muted" }, t("common.empty")));
       return;
     }
-    const table = el("table", {},
-      el("thead", {}, el("tr", {},
-        el("th", {}, t("field.schema")),
-        el("th", {}, t("field.name")),
-        el("th", {}, t("field.domains")),
-        el("th", {}, t("field.created")),
-        el("th", {}, ""),
-      )),
-      el("tbody", {}, ...rows.map((row) => el("tr", {},
+    const table = el("table");
+    const thead = el("thead", {}, el("tr", {},
+      el("th", {}, t("field.schema")),
+      el("th", {}, t("field.name")),
+      el("th", {}, t("field.domains")),
+      el("th", {}, t("field.admins")),
+      el("th", {}, t("field.created")),
+      el("th", {}, ""),
+    ));
+    const tbody = el("tbody");
+    for (const row of rows) {
+      const adminsCell = el("td", {});
+      const admins = row.admins || [];
+      if (!admins.length) {
+        adminsCell.append(el("span", { class: "muted" }, "—"));
+      } else {
+        for (const a of admins) {
+          const pill = el("span", {
+            class: "pill",
+            style: a.is_active ? "margin-right: 4px" : "margin-right: 4px; opacity: 0.5; text-decoration: line-through",
+            title: a.is_active ? "" : "Деактивовано",
+          }, a.username);
+          adminsCell.append(pill);
+        }
+      }
+      const tr = el("tr", {},
         el("td", {}, row.schema_name),
         el("td", {}, row.name),
         el("td", {}, (row.domains || []).map((d) => d.domain).join(", ")),
+        adminsCell,
         el("td", {}, row.created_on),
-        el("td", {},
+        el("td", { class: "inline-actions" },
+          el("button", {
+            onclick: () => toggleCreateAdminRow(row, tr, tbody),
+          }, t("tenant.createAdmin.button")),
           el("button", {
             class: "danger",
             onclick: async () => {
@@ -216,9 +237,71 @@ async function renderTenantsAdmin(host) {
             },
           }, t("common.delete")),
         ),
-      ))),
-    );
+      );
+      tbody.append(tr);
+    }
+    table.append(thead, tbody);
     tableWrap.append(table);
+  }
+
+  /**
+   * Тоглить рядок-форму під рядком тенанта. Якщо форма вже є — закриває,
+   * якщо нема — додає одну. На submit викликає POST /api/tenants/<id>/create-admin/
+   * і показує flash. Один тенант — одна форма; нова форма прибирає попередню.
+   */
+  function toggleCreateAdminRow(tenant, anchorTr, tbody) {
+    // Прибрати попередню form-row, якщо вона десь є.
+    tbody.querySelectorAll(".admin-form-row").forEach((n) => n.remove());
+
+    // Якщо ми клацнули на той самий рядок ще раз — це закриття. Маркер у
+    // dataset рядка-якоря.
+    if (anchorTr.dataset.adminFormOpen === "1") {
+      anchorTr.dataset.adminFormOpen = "";
+      return;
+    }
+    anchorTr.dataset.adminFormOpen = "1";
+
+    const username = el("input", { placeholder: "admin", required: true, autocomplete: "off" });
+    const password = el("input", { type: "password", required: true, autocomplete: "new-password" });
+    const submit = el("button", { type: "button" }, t("common.create"));
+    const cancel = el("button", { type: "button", class: "secondary" }, t("common.cancel"));
+
+    function close() {
+      formRow.remove();
+      anchorTr.dataset.adminFormOpen = "";
+    }
+    cancel.addEventListener("click", close);
+
+    submit.addEventListener("click", async () => {
+      const u = username.value.trim();
+      const p = password.value;
+      if (!u || !p) { return; }
+      submit.disabled = true;
+      try {
+        await api.post(`/api/tenants/${tenant.id}/create-admin/`, { username: u, password: p });
+        flash(card, "ok", `${t("tenant.createAdmin.success")} (${u} @ ${tenant.schema_name})`);
+        close();
+        await refresh();   // оновити pills-список адмінів у рядку тенанта
+      } catch (e) {
+        flash(card, "error", errorText(e));
+      } finally {
+        submit.disabled = false;
+      }
+    });
+
+    const formRow = el("tr", { class: "admin-form-row" },
+      el("td", { colspan: 6 },
+        el("div", { style: "display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; padding: 0.4rem 0" },
+          el("span", { class: "muted" }, t("tenant.createAdmin.helper")),
+          username,
+          password,
+          submit,
+          cancel,
+        ),
+      ),
+    );
+    anchorTr.insertAdjacentElement("afterend", formRow);
+    username.focus();
   }
 
   // Форма створення.
