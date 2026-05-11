@@ -10,9 +10,8 @@
  * resolved at render time so toggling UA/EN re-renders correctly.
  */
 
-import { APP_DOMAIN } from "../../config.js";
 import { api } from "../api.js";
-import { getSession } from "../auth.js";
+import { apex, getSession } from "../auth.js";
 import { t } from "../i18n.js";
 import { el, clear, flash, errorText } from "../ui.js";
 
@@ -169,11 +168,11 @@ async function renderTenantsAdmin(host) {
   card.append(tableWrap, formWrap);
   host.append(card);
 
-  const apex = (APP_DOMAIN || window.location.hostname).replace(/^[^.]+\./, "")
-               || window.location.hostname;
-  // ↑ apex = APP_DOMAIN якщо заданий; інакше — current hostname без першого
-  // labelа (для dev-режиму на alpha.localhost це дасть `localhost`). Якщо
-  // current hostname не має крапки (одинокий `localhost`) — лишаємо як є.
+  // apex() — той самий хелпер, що використовується для tenant-детекції в
+  // auth.js: повертає APP_DOMAIN як-є, або (dev fallback) обчислює його
+  // з window.location.hostname. Гарантує, що формула однакова в обох
+  // місцях — щоб новий tenant-домен мав ту саму структуру, що бачить
+  // detectTenant() при логіні з нього.
 
   async function refresh() {
     try {
@@ -231,7 +230,7 @@ async function renderTenantsAdmin(host) {
 
   function updatePreview() {
     const schema = (schemaInput.value || "").toLowerCase().trim();
-    domainPreview.textContent = schema ? `${schema}.${apex}` : "—";
+    domainPreview.textContent = schema ? `${schema}.${apex()}` : "—";
   }
   schemaInput.addEventListener("input", updatePreview);
 
@@ -257,7 +256,7 @@ async function renderTenantsAdmin(host) {
     const payload = {
       schema_name: schema,
       name: nameInput.value.trim(),
-      domain: `${schema}.${apex}`,
+      domain: `${schema}.${apex()}`,
     };
     try {
       await api.post("/api/tenants/", payload);

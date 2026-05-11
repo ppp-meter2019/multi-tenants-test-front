@@ -36,11 +36,19 @@ export function isSplitOriginMode() {
   return Boolean(API_PORT);
 }
 
-/** Apex domain we work against. Falls back to current hostname's last labels. */
-function apex() {
+/**
+ * Apex domain we work against.
+ *   - If APP_DOMAIN is set (production), return it as-is. It IS the apex —
+ *     don't strip anything from it.
+ *   - Otherwise (dev fallback), take current hostname and chop the first
+ *     label: "alpha.localhost" → "localhost"; bare "localhost" → "localhost".
+ *
+ * Exported because the admin "create tenant" form composes new tenant
+ * hostnames as `<schema>.<apex>` and must use the same logic.
+ */
+export function apex() {
   if (APP_DOMAIN) return APP_DOMAIN;
   const host = window.location.hostname || "localhost";
-  // dev fallback: "alpha.localhost" → apex "localhost"; "localhost" → "localhost"
   const dot = host.indexOf(".");
   return dot === -1 ? host : host.slice(dot + 1);
 }
